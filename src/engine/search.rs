@@ -308,4 +308,77 @@ mod tests {
         assert_eq!(fuzzy_results.len(), 1);
     }
 
+    #[test]
+    fn test_search_with_limit() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+        let title_field = schema.get_field("title").unwrap();
+
+        for i in 0..10 {
+            let mut doc = tantivy::doc!();
+            doc.add_text(title_field, format!("document {}", i));
+            writer.add_document(doc).unwrap();
+        }
+
+        writer.commit().unwrap();
+
+        let (results, total) = search_with_options(&index, "document", false, 5, 0).unwrap();
+
+        assert_eq!(total, 10);
+        assert_eq!(results.len(), 5);
+    }
+
+    #[test]
+    fn test_search_with_offset() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+        let title_field = schema.get_field("title").unwrap();
+
+        for i in 0..10 {
+            let mut doc = tantivy::doc!();
+            doc.add_text(title_field, format!("document {}", i));
+            writer.add_document(doc).unwrap();
+        }
+
+        writer.commit().unwrap();
+
+        let (results_no_offset, _) = search_with_options(&index, "document", false, 5, 0).unwrap();
+        let (results_with_offset, _) = search_with_options(&index, "document", false, 5, 5).unwrap();
+
+        assert_eq!(results_no_offset.len(), 5);
+        assert_eq!(results_with_offset.len(), 5);
+    }
+
+    #[test]
+    fn test_search_with_limit_and_offset() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+        let title_field = schema.get_field("title").unwrap();
+
+        for i in 0..10 {
+            let mut doc = tantivy::doc!();
+            doc.add_text(title_field, format!("result {}", i));
+            writer.add_document(doc).unwrap();
+        }
+
+        writer.commit().unwrap();
+
+        let (results1, total1) = search_with_options(&index, "result", false, 3, 0).unwrap();
+        let (results2, total2) = search_with_options(&index, "result", false, 3, 3).unwrap();
+        let (results3, total3) = search_with_options(&index, "result", false, 3, 6).unwrap();
+
+        assert_eq!(total1, 10);
+        assert_eq!(total2, 10);
+        assert_eq!(total3, 10);
+        assert_eq!(results1.len(), 3);
+        assert_eq!(results2.len(), 3);
+        assert_eq!(results3.len(), 3);
+    }
+
 }
