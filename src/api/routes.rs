@@ -13,5 +13,6 @@ pub fn create_routes(manager: Arc<IndexManager>) -> Router {
         .route("/indexes", get(handlers::list_indexes))
         .route("/indexes/:name", delete(handlers::delete_index))
         .route("/indexes/:name/documents", post(handlers::index_documents))
+        .route("/indexes/:name/search", get(handlers::search))
         .with_state(manager)
 }

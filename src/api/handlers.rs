@@ -1,11 +1,12 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
+use std::time::Instant;
 use crate::engine::IndexManager;
 
 #[derive(Deserialize)]
@@ -92,4 +93,52 @@ pub async fn index_documents(
         StatusCode::ACCEPTED,
         Json(IndexDocumentsResponse { indexed: count }),
     ))
+}
+
+#[derive(Deserialize)]
+pub struct SearchQuery {
+    pub q: String,
+}
+
+#[derive(Serialize)]
+pub struct SearchHit {
+    #[serde(flatten)]
+    pub document: Value,
+    #[serde(rename = "_score")]
+    pub score: f32,
+}
+
+#[derive(Serialize)]
+pub struct SearchResponse {
+    pub query: String,
+    pub hits: Vec<SearchHit>,
+    pub total: usize,
+    pub took_ms: u128,
+}
+
+pub async fn search(
+    State(manager): State<Arc<IndexManager>>,
+    Path(name): Path<String>,
+    Query(params): Query<SearchQuery>,
+) -> Result<Json<SearchResponse>, crate::error::EnzinError> {
+    let start = Instant::now();
+    
+    let (results, total) = manager.search(&name, &params.q).await?;
+
+    let took_ms = start.elapsed().as_millis();
+
+    let hits = results
+        .into_iter()
+        .map(|result| SearchHit {
+            document: result.document,
+            score: result.score,
+        })
+        .collect();
+
+    Ok(Json(SearchResponse {
+        query: params.q,
+        hits,
+        total,
+        took_ms,
+    }))
 }
