@@ -22,13 +22,23 @@ pub fn search(
     index: &Index,
     query_str: &str,
 ) -> Result<(Vec<SearchResult>, usize), EnzinError> {
-    search_with_fuzzy(index, query_str, false)
+    search_with_options(index, query_str, false, 20, 0)
 }
 
 pub fn search_with_fuzzy(
     index: &Index,
     query_str: &str,
     fuzzy: bool,
+) -> Result<(Vec<SearchResult>, usize), EnzinError> {
+    search_with_options(index, query_str, fuzzy, 20, 0)
+}
+
+pub fn search_with_options(
+    index: &Index,
+    query_str: &str,
+    fuzzy: bool,
+    limit: usize,
+    offset: usize,
 ) -> Result<(Vec<SearchResult>, usize), EnzinError> {
     let schema = index.schema();
     let searcher = index
@@ -71,14 +81,24 @@ pub fn search_with_fuzzy(
         })?
     };
 
+    let max_limit = offset + limit;
     let top_docs = searcher
-        .search(&query, &tantivy::collector::TopDocs::with_limit(1000))
+        .search(&query, &tantivy::collector::TopDocs::with_limit(max_limit))
         .map_err(|e| EnzinError::InternalError(format!("search failed: {}", e)))?;
 
-    let total = top_docs.len();
+    let total_count = searcher
+        .search(&query, &tantivy::collector::Count)
+        .map_err(|e| EnzinError::InternalError(format!("count failed: {}", e)))?;
+
     let mut results = Vec::new();
 
-    for (score, doc_address) in top_docs {
+    for (i, (score, doc_address)) in top_docs.into_iter().enumerate() {
+        if i < offset {
+            continue;
+        }
+        if results.len() >= limit {
+            break;
+        }
         let tantivy_doc: TantivyDocument = searcher
             .doc(doc_address)
             .map_err(|e| EnzinError::InternalError(format!("failed to retrieve doc: {}", e)))?;
@@ -106,7 +126,7 @@ pub fn search_with_fuzzy(
         });
     }
 
-    Ok((results, total))
+    Ok((results, total_count as usize))
 }
 
 #[cfg(test)]
