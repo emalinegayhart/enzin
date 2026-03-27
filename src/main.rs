@@ -1,17 +1,18 @@
+mod api;
+mod engine;
 mod error;
 
-use axum::{
-    routing::get,
-    Json, Router,
-};
-use serde_json::json;
+use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new()
-        .route("/health", get(health))
-        .fallback(not_found);
+    let data_dir = PathBuf::from("./data");
+    std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
+
+    let manager = Arc::new(engine::IndexManager::new(data_dir));
+    let app = api::create_routes(manager);
 
     let listener = TcpListener::bind("127.0.0.1:7700")
         .await
@@ -22,14 +23,4 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Server error");
-}
-
-async fn health() -> Json<serde_json::Value> {
-    Json(json!({ "status": "ok" }))
-}
-
-async fn not_found() -> Result<Json<serde_json::Value>, error::EnzinError> {
-    Err(error::EnzinError::InternalError(
-        "route not found".to_string(),
-    ))
 }
