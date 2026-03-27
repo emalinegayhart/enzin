@@ -84,3 +84,117 @@ pub fn search(
 
     Ok((results, total))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tantivy::{schema::Schema, Index};
+    use tempfile::TempDir;
+
+    fn create_test_index() -> (TempDir, Index) {
+        use tantivy::schema::STORED;
+        use tantivy::schema::TEXT;
+
+        let temp_dir = TempDir::new().unwrap();
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("title", TEXT | STORED);
+        schema_builder.add_text_field("body", TEXT | STORED);
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_dir(temp_dir.path(), schema).unwrap();
+
+        (temp_dir, index)
+    }
+
+    #[test]
+    fn test_basic_search() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+
+        let title_field = schema.get_field("title").unwrap();
+        let body_field = schema.get_field("body").unwrap();
+
+        let mut doc1 = tantivy::doc!();
+        doc1.add_text(title_field, "hello world");
+        doc1.add_text(body_field, "this is a test");
+        writer.add_document(doc1).unwrap();
+
+        let mut doc2 = tantivy::doc!();
+        doc2.add_text(title_field, "goodbye world");
+        doc2.add_text(body_field, "farewell");
+        writer.add_document(doc2).unwrap();
+
+        writer.commit().unwrap();
+
+        let (results, total) = search(&index, "hello").unwrap();
+
+        assert_eq!(total, 1);
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn test_search_multiple_results() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+        let title_field = schema.get_field("title").unwrap();
+        let body_field = schema.get_field("body").unwrap();
+
+        for i in 0..3 {
+            let mut doc = tantivy::doc!();
+            doc.add_text(title_field, format!("test document {}", i));
+            doc.add_text(body_field, "contains test keyword");
+            writer.add_document(doc).unwrap();
+        }
+
+        writer.commit().unwrap();
+
+        let (results, total) = search(&index, "test").unwrap();
+
+        assert_eq!(total, 3);
+        assert_eq!(results.len(), 3);
+    }
+
+    #[test]
+    fn test_search_no_results() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+        let title_field = schema.get_field("title").unwrap();
+
+        let mut doc = tantivy::doc!();
+        doc.add_text(title_field, "hello");
+        writer.add_document(doc).unwrap();
+
+        writer.commit().unwrap();
+
+        let (results, total) = search(&index, "xyz").unwrap();
+
+        assert_eq!(total, 0);
+        assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn test_search_returns_scores() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+        let title_field = schema.get_field("title").unwrap();
+
+        let mut doc = tantivy::doc!();
+        doc.add_text(title_field, "hello hello hello");
+        writer.add_document(doc).unwrap();
+
+        writer.commit().unwrap();
+
+        let (results, _) = search(&index, "hello").unwrap();
+
+        assert!(!results.is_empty());
+        assert!(results[0].score > 0.0);
+    }
+}
