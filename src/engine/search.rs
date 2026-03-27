@@ -1,7 +1,8 @@
 use serde_json::{json, Value};
-use tantivy::query::QueryParser;
+use tantivy::query::{QueryParser, FuzzyTermQuery, BooleanQuery};
 use tantivy::Index;
 use tantivy::schema::document::{OwnedValue, TantivyDocument};
+use tantivy::Term;
 use crate::error::EnzinError;
 
 #[derive(Debug, Clone)]
@@ -20,6 +21,14 @@ pub struct SearchResponse {
 pub fn search(
     index: &Index,
     query_str: &str,
+) -> Result<(Vec<SearchResult>, usize), EnzinError> {
+    search_with_fuzzy(index, query_str, false)
+}
+
+pub fn search_with_fuzzy(
+    index: &Index,
+    query_str: &str,
+    fuzzy: bool,
 ) -> Result<(Vec<SearchResult>, usize), EnzinError> {
     let schema = index.schema();
     let searcher = index
@@ -42,10 +51,25 @@ pub fn search(
         return Ok((vec![], 0));
     }
 
-    let query_parser = QueryParser::for_index(&index, text_fields);
-    let query = query_parser.parse_query(query_str).map_err(|e| {
-        EnzinError::InvalidDocument(format!("invalid query: {}", e))
-    })?;
+    let query: Box<dyn tantivy::query::Query> = if fuzzy {
+        let terms: Vec<_> = query_str.split_whitespace().collect();
+        let mut clauses = Vec::new();
+
+        for term_str in terms {
+            for field in &text_fields {
+                let term = Term::from_field_text(*field, term_str);
+                let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
+                clauses.push((tantivy::query::Occur::Should, Box::new(fuzzy_query) as Box<dyn tantivy::query::Query>));
+            }
+        }
+
+        Box::new(BooleanQuery::new(clauses))
+    } else {
+        let query_parser = QueryParser::for_index(&index, text_fields);
+        query_parser.parse_query(query_str).map_err(|e| {
+            EnzinError::InvalidDocument(format!("invalid query: {}", e))
+        })?
+    };
 
     let top_docs = searcher
         .search(&query, &tantivy::collector::TopDocs::with_limit(1000))
@@ -197,4 +221,5 @@ mod tests {
         assert!(!results.is_empty());
         assert!(results[0].score > 0.0);
     }
+
 }

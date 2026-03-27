@@ -98,6 +98,8 @@ pub async fn index_documents(
 #[derive(Deserialize)]
 pub struct SearchQuery {
     pub q: String,
+    #[serde(default)]
+    pub fuzzy: bool,
 }
 
 #[derive(Serialize)]
@@ -123,7 +125,11 @@ pub async fn search(
 ) -> Result<Json<SearchResponse>, crate::error::EnzinError> {
     let start = Instant::now();
     
-    let (results, total) = manager.search(&name, &params.q).await?;
+    let (results, total) = if params.fuzzy {
+        manager.search_fuzzy(&name, &params.q).await?
+    } else {
+        manager.search(&name, &params.q).await?
+    };
 
     let took_ms = start.elapsed().as_millis();
 
