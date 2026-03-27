@@ -1,0 +1,13 @@
+src/
+.storybook/
+**/*.test.tsx
+**/*.test.ts
+**/*.stories.tsx
+vitest.config.ts
+vitest.setup.ts
+tsconfig.node.json
+vite.config.ts
+.gitignore
+node_modules/
+dist/
+coverage/

@@ -1,0 +1,59 @@
+{
+  "name": "@enzin/react",
+  "version": "0.1.0",
+  "description": "React components for Enzin search engine",
+  "author": "Enzin",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/emalinegayhart/enzin",
+    "directory": "packages/react"
+  },
+  "homepage": "https://github.com/emalinegayhart/enzin/tree/main/packages/react",
+  "bugs": {
+    "url": "https://github.com/emalinegayhart/enzin/issues"
+  },
+  "keywords": [
+    "search",
+    "react",
+    "component",
+    "library",
+    "ui"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@storybook/react": "^7.6.10",
+    "@storybook/react-vite": "^7.6.10",
+    "@storybook/addon-essentials": "^7.6.10",
+    "@storybook/addon-interactions": "^7.6.10",
+    "@storybook/addon-links": "^7.6.10",
+    "@storybook/blocks": "^7.6.10",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/ui": "^1.1.0",
+    "jsdom": "^23.0.1",
+    "storybook": "^7.6.10",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "vitest": "^1.1.0"
+  }
+}
