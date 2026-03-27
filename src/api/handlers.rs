@@ -4,7 +4,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::sync::Arc;
 use crate::engine::IndexManager;
 
@@ -61,4 +61,35 @@ pub async fn delete_index(
 ) -> Result<Json<DeleteIndexResponse>, crate::error::EnzinError> {
     manager.delete_index(&name).await?;
     Ok(Json(DeleteIndexResponse { deleted: name }))
+}
+
+#[derive(Serialize)]
+pub struct IndexDocumentsResponse {
+    pub indexed: usize,
+}
+
+pub async fn index_documents(
+    State(manager): State<Arc<IndexManager>>,
+    Path(name): Path<String>,
+    body: String,
+) -> Result<(StatusCode, Json<IndexDocumentsResponse>), crate::error::EnzinError> {
+    let parsed: Value = serde_json::from_str(&body)
+        .map_err(|e| crate::error::EnzinError::InvalidDocument(format!("invalid json: {}", e)))?;
+
+    let documents = match parsed {
+        Value::Array(arr) => arr,
+        Value::Object(_) => vec![parsed],
+        _ => {
+            return Err(crate::error::EnzinError::InvalidDocument(
+                "expected object or array of objects".to_string(),
+            ))
+        }
+    };
+
+    let count = manager.index_documents(&name, documents).await?;
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(IndexDocumentsResponse { indexed: count }),
+    ))
 }

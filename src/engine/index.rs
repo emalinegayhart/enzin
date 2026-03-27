@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use serde_json::Value;
 use tantivy::{Index, schema::Schema};
 use tokio::sync::RwLock;
 use crate::error::EnzinError;
+use super::schema::infer_schema_from_document;
 
 pub struct IndexManager {
     indexes: Arc<RwLock<HashMap<String, Index>>>,
@@ -40,6 +42,38 @@ impl IndexManager {
         Ok(())
     }
 
+    pub async fn init_schema_from_document(
+        &self,
+        index_name: &str,
+        doc: &Value,
+    ) -> Result<(), EnzinError> {
+        let index = self.get_index(index_name).await?;
+        let current_schema = index.schema();
+
+        if current_schema.fields().count() > 0 {
+            return Ok(());
+        }
+
+        let new_schema = infer_schema_from_document(doc)
+            .map_err(|e| EnzinError::InvalidDocument(e))?;
+
+        let index_path = self.data_dir.join(index_name);
+        
+        std::fs::remove_dir_all(&index_path)
+            .map_err(|e| EnzinError::InternalError(format!("failed to remove old index: {}", e)))?;
+        
+        std::fs::create_dir_all(&index_path)
+            .map_err(|e| EnzinError::InternalError(format!("failed to create index dir: {}", e)))?;
+
+        let new_index = Index::create_in_dir(&index_path, new_schema)
+            .map_err(|e| EnzinError::InternalError(format!("failed to create index: {}", e)))?;
+
+        let mut indexes = self.indexes.write().await;
+        indexes.insert(index_name.to_string(), new_index);
+
+        Ok(())
+    }
+
     pub async fn list_indexes(&self) -> Vec<String> {
         let indexes = self.indexes.read().await;
         indexes.keys().cloned().collect()
@@ -71,6 +105,74 @@ impl IndexManager {
             .get(name)
             .cloned()
             .ok_or_else(|| EnzinError::IndexNotFound(format!("index '{}' not found", name)))
+    }
+
+    pub async fn index_documents(
+        &self,
+        index_name: &str,
+        documents: Vec<Value>,
+    ) -> Result<usize, EnzinError> {
+        if documents.is_empty() {
+            return Err(EnzinError::InvalidDocument(
+                "no documents provided".to_string(),
+            ));
+        }
+
+        self.init_schema_from_document(index_name, &documents[0])
+            .await?;
+
+        let index = self.get_index(index_name).await?;
+
+        let mut writer = index
+            .writer(50_000_000)
+            .map_err(|e| EnzinError::InternalError(format!("failed to create writer: {}", e)))?;
+
+        let schema = index.schema();
+        let mut indexed_count = 0;
+
+        for doc in documents {
+            let mut tantivy_doc = tantivy::doc!();
+
+            match doc.as_object() {
+                Some(obj) => {
+                    for (key, value) in obj.iter() {
+                        if let Ok(field) = schema.get_field(key) {
+                            match value {
+                                Value::String(s) => {
+                                    tantivy_doc.add_text(field, s.clone());
+                                }
+                                Value::Number(n) => {
+                                    if let Some(u) = n.as_u64() {
+                                        tantivy_doc.add_u64(field, u);
+                                    }
+                                }
+                                Value::Bool(b) => {
+                                    tantivy_doc.add_u64(field, if *b { 1 } else { 0 });
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    writer
+                        .add_document(tantivy_doc)
+                        .map_err(|e| {
+                            EnzinError::InternalError(format!("failed to add document: {}", e))
+                        })?;
+                    indexed_count += 1;
+                }
+                None => {
+                    return Err(EnzinError::InvalidDocument(
+                        "document must be a json object".to_string(),
+                    ))
+                }
+            }
+        }
+
+        writer
+            .commit()
+            .map_err(|e| EnzinError::InternalError(format!("failed to commit: {}", e)))?;
+
+        Ok(indexed_count)
     }
 }
 
@@ -142,6 +244,69 @@ mod tests {
         let manager = IndexManager::new(temp_dir.path().to_path_buf());
 
         let result = manager.get_index("nonexistent").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_index_documents_single() {
+        use serde_json::json;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let manager = IndexManager::new(temp_dir.path().to_path_buf());
+
+        manager.create_index("test").await.unwrap();
+        
+        let docs = vec![json!({
+            "title": "hello",
+            "count": 42
+        })];
+        
+        let result = manager.index_documents("test", docs).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_index_documents_batch() {
+        use serde_json::json;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let manager = IndexManager::new(temp_dir.path().to_path_buf());
+
+        manager.create_index("test").await.unwrap();
+        
+        let docs = vec![
+            json!({ "title": "first" }),
+            json!({ "title": "second" }),
+            json!({ "title": "third" }),
+        ];
+        
+        let result = manager.index_documents("test", docs).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_index_documents_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = IndexManager::new(temp_dir.path().to_path_buf());
+
+        manager.create_index("test").await.unwrap();
+        
+        let docs = vec![];
+        let result = manager.index_documents("test", docs).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_index_documents_nonexistent_index() {
+        use serde_json::json;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let manager = IndexManager::new(temp_dir.path().to_path_buf());
+
+        let docs = vec![json!({ "title": "test" })];
+        let result = manager.index_documents("nonexistent", docs).await;
         assert!(result.is_err());
     }
 }
