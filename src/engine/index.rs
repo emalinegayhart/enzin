@@ -6,6 +6,7 @@ use tantivy::{Index, schema::Schema};
 use tokio::sync::RwLock;
 use crate::error::EnzinError;
 use super::schema::infer_schema_from_document;
+use super::search::SearchResult;
 
 pub struct IndexManager {
     indexes: Arc<RwLock<HashMap<String, Index>>>,
@@ -173,6 +174,24 @@ impl IndexManager {
             .map_err(|e| EnzinError::InternalError(format!("failed to commit: {}", e)))?;
 
         Ok(indexed_count)
+    }
+
+    pub async fn search(
+        &self,
+        index_name: &str,
+        query: &str,
+    ) -> Result<(Vec<SearchResult>, usize), EnzinError> {
+        let index = self.get_index(index_name).await?;
+        super::search::search(&index, query)
+    }
+
+    pub async fn search_fuzzy(
+        &self,
+        index_name: &str,
+        query: &str,
+    ) -> Result<(Vec<SearchResult>, usize), EnzinError> {
+        let index = self.get_index(index_name).await?;
+        super::search::search_with_fuzzy(&index, query, true)
     }
 }
 
