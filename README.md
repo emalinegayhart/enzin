@@ -8,6 +8,8 @@ docker-compose up
 
 server runs on http://0.0.0.0:7700
 
+---
+
 **post /indexes**
 
 create index
@@ -16,17 +18,23 @@ curl -X POST http://localhost:7700/indexes \
   -H "Content-Type: application/json" \
   -d '{"name":"products"}'
 
+---
+
 **get /indexes**
 
 list indexes
 
 curl http://localhost:7700/indexes
 
+---
+
 **delete /indexes/:name**
 
 delete index
 
 curl -X DELETE http://localhost:7700/indexes/products
+
+---
 
 **post /indexes/:name/documents**
 
@@ -41,6 +49,8 @@ batch
 curl -X POST http://localhost:7700/indexes/products/documents \
   -H "Content-Type: application/json" \
   -d '[{"id":"1","title":"red shoes"},{"id":"2","title":"blue shirt"}]'
+
+---
 
 **get /indexes/:name/search**
 
