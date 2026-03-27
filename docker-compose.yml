@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  enzin:
+    build: .
+    ports:
+      - "7700:7700"
+    volumes:
+      - enzin_data:/data
+    environment:
+      ENZIN_PORT: 7700
+      ENZIN_DATA_DIR: /data
+
+volumes:
+  enzin_data:
