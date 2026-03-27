@@ -193,6 +193,18 @@ impl IndexManager {
         let index = self.get_index(index_name).await?;
         super::search::search_with_fuzzy(&index, query, true)
     }
+
+    pub async fn search_with_options(
+        &self,
+        index_name: &str,
+        query: &str,
+        fuzzy: bool,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(Vec<SearchResult>, usize), EnzinError> {
+        let index = self.get_index(index_name).await?;
+        super::search::search_with_options(&index, query, fuzzy, limit, offset)
+    }
 }
 
 #[cfg(test)]

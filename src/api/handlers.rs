@@ -100,6 +100,14 @@ pub struct SearchQuery {
     pub q: String,
     #[serde(default)]
     pub fuzzy: bool,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+    #[serde(default)]
+    pub offset: usize,
+}
+
+fn default_limit() -> usize {
+    20
 }
 
 #[derive(Serialize)]
@@ -125,11 +133,9 @@ pub async fn search(
 ) -> Result<Json<SearchResponse>, crate::error::EnzinError> {
     let start = Instant::now();
     
-    let (results, total) = if params.fuzzy {
-        manager.search_fuzzy(&name, &params.q).await?
-    } else {
-        manager.search(&name, &params.q).await?
-    };
+    let (results, total) = manager
+        .search_with_options(&name, &params.q, params.fuzzy, params.limit, params.offset)
+        .await?;
 
     let took_ms = start.elapsed().as_millis();
 
