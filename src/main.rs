@@ -1,3 +1,5 @@
+mod error;
+
 use axum::{
     routing::get,
     Json, Router,
@@ -8,7 +10,8 @@ use tokio::net::TcpListener;
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .route("/health", get(health));
+        .route("/health", get(health))
+        .fallback(not_found);
 
     let listener = TcpListener::bind("127.0.0.1:7700")
         .await
@@ -23,4 +26,10 @@ async fn main() {
 
 async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok" }))
+}
+
+async fn not_found() -> Result<Json<serde_json::Value>, error::EnzinError> {
+    Err(error::EnzinError::InternalError(
+        "route not found".to_string(),
+    ))
 }
