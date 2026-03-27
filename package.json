@@ -1,0 +1,22 @@
+{
+  "name": "enzin",
+  "version": "0.1.0",
+  "description": "Enzin search engine with React component library",
+  "private": true,
+  "workspaces": [
+    "packages/react",
+    "apps/demo"
+  ],
+  "scripts": {
+    "react:dev": "cd packages/react && npm run dev",
+    "react:build": "cd packages/react && npm run build",
+    "react:test": "cd packages/react && npm run test",
+    "react:storybook": "cd packages/react && npm run storybook",
+    "api": "cd packages/api && cargo run",
+    "docker:up": "docker-compose -f packages/api/docker-compose.yml up",
+    "docker:down": "docker-compose -f packages/api/docker-compose.yml down"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
