@@ -222,4 +222,70 @@ mod tests {
         assert!(results[0].score > 0.0);
     }
 
+    #[test]
+    fn test_fuzzy_search_typo() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+        let title_field = schema.get_field("title").unwrap();
+
+        let mut doc = tantivy::doc!();
+        doc.add_text(title_field, "hello");
+        writer.add_document(doc).unwrap();
+
+        writer.commit().unwrap();
+
+        let (exact_results, _) = search(&index, "helo").unwrap();
+        assert_eq!(exact_results.len(), 0);
+
+        let (fuzzy_results, _) = search_with_fuzzy(&index, "helo", true).unwrap();
+        assert_eq!(fuzzy_results.len(), 1);
+    }
+
+    #[test]
+    fn test_fuzzy_search_multiple_typos() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+        let title_field = schema.get_field("title").unwrap();
+
+        for word in &["world", "earth", "globe"] {
+            let mut doc = tantivy::doc!();
+            doc.add_text(title_field, word);
+            writer.add_document(doc).unwrap();
+        }
+
+        writer.commit().unwrap();
+
+        let (results, total) = search_with_fuzzy(&index, "word", true).unwrap();
+
+        assert!(total > 0);
+        assert!(!results.is_empty());
+    }
+
+    #[test]
+    fn test_fuzzy_search_exact_match_still_works() {
+        let (_temp_dir, index) = create_test_index();
+        let schema = index.schema();
+
+        let mut writer = index.writer(50_000_000).unwrap();
+        let title_field = schema.get_field("title").unwrap();
+
+        let mut doc = tantivy::doc!();
+        doc.add_text(title_field, "precise");
+        writer.add_document(doc).unwrap();
+
+        writer.commit().unwrap();
+
+        let (exact_results, exact_total) = search(&index, "precise").unwrap();
+        let (fuzzy_results, fuzzy_total) = search_with_fuzzy(&index, "precise", true).unwrap();
+
+        assert_eq!(exact_total, 1);
+        assert_eq!(fuzzy_total, 1);
+        assert_eq!(exact_results.len(), 1);
+        assert_eq!(fuzzy_results.len(), 1);
+    }
+
 }
