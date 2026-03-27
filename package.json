@@ -11,8 +11,12 @@
     "react:dev": "cd packages/react && npm run dev",
     "react:build": "cd packages/react && npm run build",
     "react:test": "cd packages/react && npm run test",
+    "react:test:coverage": "cd packages/react && npm run test:coverage",
     "react:storybook": "cd packages/react && npm run storybook",
+    "react:build-storybook": "cd packages/react && npm run build-storybook",
     "api": "cd packages/api && cargo run",
+    "api:build": "cd packages/api && cargo build",
+    "api:test": "cd packages/api && cargo test",
     "docker:up": "docker-compose -f packages/api/docker-compose.yml up",
     "docker:down": "docker-compose -f packages/api/docker-compose.yml down"
   },
