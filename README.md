@@ -1,8 +1,12 @@
-2 packages: 
-1) Search API
+WIP
+
+Currently 2 packages: 
+1) Search backend/API
 2) React npm library (not yet published - MUI + TailwindCSS support versions to come)
 
-**running locally**
+---
+
+**running search locally**
 
 cargo run
 
